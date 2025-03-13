@@ -9,7 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
-import com.example.notificationapp.MessagingService;
+//import com.example.notificationapp.MessagingService;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
