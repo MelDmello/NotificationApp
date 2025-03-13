@@ -6,21 +6,13 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import androidx.core.app.RemoteInput;
-
-import androidx.core.app.NotificationCompat;
-import com.example.notificationapp.MessagingService;
 
 public class NotificationReceiver extends BroadcastReceiver {
+
     public static final String ACTION_NO = "com.example.notificationapp.ACTION_NO";
 
-    // In NotificationReceiver.java
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent.hasExtra(RemoteInput.EXTRA_RESULTS_DATA)) {
-            // ... (Your existing remote input handling code - this is correct) ...
-        }
-
         if (ACTION_NO.equals(intent.getAction())) {
             // Stop the repeating notifications
             cancelNotifications(context);
@@ -31,8 +23,6 @@ public class NotificationReceiver extends BroadcastReceiver {
         }
     }
 
-
-    // Method to cancel all notifications and stop future ones
     private void cancelNotifications(Context context) {
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(MainActivity.NOTIFICATION_ID);
