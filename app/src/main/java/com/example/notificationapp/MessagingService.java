@@ -8,12 +8,14 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
 import android.app.AlarmManager;
+import androidx.core.app.RemoteInput;
 
 public class MessagingService extends Service {
 
@@ -21,13 +23,16 @@ public class MessagingService extends Service {
     public static final String ACTION_MARK_AS_READ = "com.example.MARK_AS_READ";
     public static final String ACTION_SCHEDULE_NOTIFICATION = "com.example.SCHEDULE_NOTIFICATION";
     public static final String ACTION_CANCEL_NOTIFICATION = "com.example.CANCEL_NOTIFICATION";
-    public static final String ACTION_NO = "com.example.ACTION_NO"; // Define the No action
-    private static final int FOREGROUND_SERVICE_ID = 123; // Unique ID for foreground service
+    public static final String ACTION_NO = "com.example.ACTION_NO";
+    public static final String REMOTE_INPUT_RESULT_KEY = "reply_key";
+    public static final String EXTRA_CONVERSATION_ID_KEY = "conversation_id";
+    private static final int FOREGROUND_SERVICE_ID = 123;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        createNotificationChannel(); // Initialize notification channel
+        createNotificationChannel();
+        startForeground(FOREGROUND_SERVICE_ID, createForegroundNotification());
     }
 
     @Override
@@ -35,31 +40,36 @@ public class MessagingService extends Service {
         if (intent != null) {
             String action = intent.getAction();
             if (ACTION_REPLY.equals(action)) {
-                handleReplyAction();
+                handleReplyAction(intent);
             } else if (ACTION_MARK_AS_READ.equals(action)) {
                 handleMarkAsReadAction();
             } else if (ACTION_SCHEDULE_NOTIFICATION.equals(action)) {
                 scheduleNotification();
             } else if (ACTION_CANCEL_NOTIFICATION.equals(action)) {
                 cancelScheduledNotification();
-            } else if (ACTION_NO.equals(action)) { // Handle the No action
+            } else if (ACTION_NO.equals(action)) {
                 handleNoAction();
             }
         }
-        return START_NOT_STICKY; // Service is only needed to schedule the alarm
+        return START_STICKY;
     }
 
-    private void handleReplyAction() {
-        // Automatically set the reply to "Yes"
-        String replyMessage = "Yes";
-        Log.d("MessagingService", "Auto reply sent: " + replyMessage);
-        // Send the "Yes" response back to MainActivity
-        Intent mainActivityIntent = new Intent(this, MainActivity.class);
-        mainActivityIntent.putExtra("response", replyMessage);
-        mainActivityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        startActivity(mainActivityIntent);
-        // Cancel the notification
-        cancelNotification();
+    private void handleReplyAction(Intent intent) {
+        Bundle results = RemoteInput.getResultsFromIntent(intent);
+        if (results != null) {
+            CharSequence message = results.getCharSequence(REMOTE_INPUT_RESULT_KEY);
+            if (message != null) {
+                String replyMessage = message.toString();
+                Log.d("MessagingService", "Received reply: " + replyMessage);
+                Intent mainActivityIntent = new Intent(this, MainActivity.class);
+                mainActivityIntent.putExtra("response", replyMessage);
+                mainActivityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(mainActivityIntent);
+                cancelNotification();
+            }
+        } else {
+            Log.w("MessagingService", "No RemoteInput results found!");
+        }
     }
 
     private void handleMarkAsReadAction() {
@@ -69,8 +79,8 @@ public class MessagingService extends Service {
 
     private void handleNoAction() {
         Log.d("MessagingService", "No action performed: Cancelling notifications");
-        cancelScheduledNotification(); // Call your cancelScheduledNotification method
-        cancelNotification(); // Cancel the current notification
+        cancelScheduledNotification();
+        cancelNotification();
     }
 
     private void cancelNotification() {
@@ -99,18 +109,22 @@ public class MessagingService extends Service {
         markAsReadIntent.setAction(MessagingService.ACTION_MARK_AS_READ);
         PendingIntent markAsReadPendingIntent = PendingIntent.getService(
                 context,
-                1, // Unique ID
+                1,
                 markAsReadIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         return new NotificationCompat.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel, // Or a more appropriate icon
+                android.R.drawable.ic_menu_close_clear_cancel,
                 "Mark as Read",
                 markAsReadPendingIntent
         )
                 .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
                 .setShowsUserInterface(false)
                 .build();
+    }
+
+    private RemoteInput createReplyRemoteInput() {
+        return new RemoteInput.Builder(REMOTE_INPUT_RESULT_KEY).build();
     }
 
     public void showNotification(Context context) {
@@ -124,26 +138,31 @@ public class MessagingService extends Service {
                 .addMessage("Do you want to continue??", System.currentTimeMillis(), user);
         Log.d("MessagingService", "MessagingStyle: " + messagingStyle.getMessages().size() + " messages");
 
-        // Yes Action (Reply)
-        Intent yesIntent = new Intent(context, MessagingService.class);
-        yesIntent.setAction(MessagingService.ACTION_REPLY);
-        PendingIntent yesPendingIntent = PendingIntent.getService(
+        Intent replyIntent = new Intent(context, MessagingService.class);
+        replyIntent.setAction(ACTION_REPLY);
+        PendingIntent replyPendingIntent = PendingIntent.getService(
                 context,
                 0,
-                yesIntent,
+                replyIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
         );
-        NotificationCompat.Action yesAction =
-                new NotificationCompat.Action.Builder(android.R.drawable.ic_menu_send, "Yes", yesPendingIntent)
+
+        RemoteInput remoteInput = createReplyRemoteInput();
+
+        NotificationCompat.Action replyAction =
+                new NotificationCompat.Action.Builder(
+                        android.R.drawable.ic_menu_send,
+                        "Reply",
+                        replyPendingIntent)
+                        .addRemoteInput(remoteInput)
                         .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
                         .build();
 
-        // No Action (Cancel) -  Consider removing this, and ONLY using Mark as Read.
         Intent noIntent = new Intent(context, MessagingService.class);
-        noIntent.setAction(MessagingService.ACTION_NO);  // Use the new ACTION_NO
+        noIntent.setAction(MessagingService.ACTION_NO);
         PendingIntent noPendingIntent = PendingIntent.getService(
                 context,
-                2,  // Unique request code
+                2,
                 noIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
@@ -160,9 +179,9 @@ public class MessagingService extends Service {
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(messagingStyle)
-                .addAction(yesAction)
-                .addAction(noAction) // Add the "No" action
-                .addAction(createMarkAsReadAction(context))  // REALLY make sure this is added!
+                .addAction(replyAction)
+                .addAction(noAction)
+                .addAction(createMarkAsReadAction(context))
                 .setShortcutId("reminder_conv");
 
         NotificationManager notificationManager =
@@ -173,23 +192,19 @@ public class MessagingService extends Service {
 
     private void scheduleNotification() {
         Context context = this;
-        Intent intent = new Intent(context, NotificationReceiver.class); // Target the receiver!
-        PendingIntent pendingIntent = PendingIntent.getBroadcast( // Use getBroadcast!
+        Intent intent = new Intent(context, NotificationReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
                 context,
-                0, // Request code (important: keep this the same for cancelling)
+                0,
                 intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
         long interval = 30 * 1000;
         AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), interval, pendingIntent);
-        //Create notification for foreground service
-        Notification notification = createForeGroundNotification();
-        startForeground(FOREGROUND_SERVICE_ID, notification);
-        stopSelf(); // Stop the service after scheduling
     }
 
-    private Notification createForeGroundNotification() {
+    private Notification createForegroundNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent =
                 PendingIntent.getActivity(this, 0, notificationIntent,
@@ -205,15 +220,15 @@ public class MessagingService extends Service {
     private void cancelScheduledNotification() {
         Context context = this;
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        Intent intent = new Intent(context, NotificationReceiver.class); // Target the receiver!
+        Intent intent = new Intent(context, NotificationReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
                 context,
-                0, // Must match the request code used when scheduling!
+                0,
                 intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
         alarmManager.cancel(pendingIntent);
-        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopForeground(true);
         stopSelf();
     }
 
