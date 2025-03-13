@@ -1,15 +1,52 @@
+# Ignore IDE-specific files
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+*.iws
+
+# Ignore local.properties (contains system-specific SDK paths)
 local.properties
+
+# Gradle-related files
+.gradle/
+.gradle/caches/
+.gradle/wrapper/
+gradle.properties
+
+# Build outputs (ignore all build directories)
+**/build/
+**/.externalNativeBuild/
+**/.cxx/
+
+# Google Services (Firebase, Analytics, etc.)
+google-services.json
+app/google-services.json
+
+# Keystore files (avoid exposing private keys)
+*.jks
+*.keystore
+
+# Log files
+*.log
+
+# Virtual device-related files
+*.avd/
+*.ini
+
+# APKs, AABs, and other generated files
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+/output.json
+
+# Miscellaneous
+*.swp
+*.swo
+*.bak
+*.tmp
+.DS_Store
+Thumbs.db
+
+# ProGuard/R8 rules
+proguard-rules.pro
