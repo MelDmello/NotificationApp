@@ -2,12 +2,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions -->
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -21,7 +15,7 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" /> <!-- Add this line -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Features -->
     <uses-feature
@@ -60,7 +54,6 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse" >
-            <!-- Important: declare foregroundServiceType -->
             <meta-data
                 android:name="android.app.lib.BACKGROUND_SERVICE_ALLOWED"
                 android:value="false" />
@@ -72,10 +65,6 @@
         <receiver
             android:name=".NotificationActionReceiver"
             android:exported="false">
-            <intent-filter>
-                <action android:name="com.example.notificationapp.ACTION_YES" />
-                <action android:name="com.example.notificationapp.ACTION_NO" />
-            </intent-filter>
         </receiver>
 
         <receiver
