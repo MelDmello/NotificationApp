@@ -1,5 +1,6 @@
 package com.example.notificationapp;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,14 +8,15 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
-import android.app.AlarmManager;
 import androidx.core.app.RemoteInput;
 
 public class MessagingService extends Service {
@@ -33,6 +35,8 @@ public class MessagingService extends Service {
         super.onCreate();
         createNotificationChannel();
         startForeground(FOREGROUND_SERVICE_ID, createForegroundNotification());
+
+        showNotification(this);
     }
 
     @Override
@@ -85,7 +89,7 @@ public class MessagingService extends Service {
 
     private void cancelNotification() {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancel(MainActivity.NOTIFICATION_ID);
+        notificationManager.cancel(getCurrentNotificationId(this) - 1);
     }
 
     private void createNotificationChannel() {
@@ -127,77 +131,75 @@ public class MessagingService extends Service {
         return new RemoteInput.Builder(REMOTE_INPUT_RESULT_KEY).build();
     }
 
+    private int getCurrentNotificationId(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE);
+        return prefs.getInt("notification_id", 1);
+    }
+
+    private int getNextNotificationId(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE);
+        int id = prefs.getInt("notification_id", 1);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putInt("notification_id", id + 1);
+        editor.apply();
+        return id;
+    }
+
     public void showNotification(Context context) {
+        int notificationId = getNextNotificationId(context);
+
         Person user = new Person.Builder()
                 .setName("Reminder")
                 .setKey("reminder_system")
                 .setImportant(true)
                 .build();
+
         NotificationCompat.MessagingStyle messagingStyle = new NotificationCompat.MessagingStyle(user)
                 .setConversationTitle("Reminder!")
-                .addMessage("Do you want to continue??", System.currentTimeMillis(), user);
+                .addMessage("Do you want to continue?", System.currentTimeMillis(), user)
+                .addHistoricMessage(new NotificationCompat.MessagingStyle.Message(
+                        "Previous reminder message", System.currentTimeMillis() - 60000, user  // 1-minute-old message
+                ));
+
+
         Log.d("MessagingService", "MessagingStyle: " + messagingStyle.getMessages().size() + " messages");
 
         Intent replyIntent = new Intent(context, MessagingService.class);
         replyIntent.setAction(ACTION_REPLY);
         PendingIntent replyPendingIntent = PendingIntent.getService(
-                context,
-                0,
-                replyIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
-        );
+                context, 0, replyIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
 
         RemoteInput remoteInput = createReplyRemoteInput();
 
-        NotificationCompat.Action replyAction =
-                new NotificationCompat.Action.Builder(
-                        android.R.drawable.ic_menu_send,
-                        "Reply",
-                        replyPendingIntent)
-                        .addRemoteInput(remoteInput)
-                        .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
-                        .build();
-
-        Intent noIntent = new Intent(context, MessagingService.class);
-        noIntent.setAction(MessagingService.ACTION_NO);
-        PendingIntent noPendingIntent = PendingIntent.getService(
-                context,
-                2,
-                noIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        NotificationCompat.Action noAction =
-                new NotificationCompat.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "No", noPendingIntent)
-                        .build();
+        NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
+                android.R.drawable.ic_menu_send, "Reply", replyPendingIntent)
+                .addRemoteInput(remoteInput)
+                .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+                .build();
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, MainActivity.CHANNEL_ID)
                 .setContentTitle("Reminder")
                 .setContentText("Do you want to continue?")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setCategory(Notification.CATEGORY_MESSAGE)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(messagingStyle)
                 .addAction(replyAction)
-                .addAction(noAction)
                 .addAction(createMarkAsReadAction(context))
                 .setShortcutId("reminder_conv");
 
-        NotificationManager notificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(MainActivity.NOTIFICATION_ID, builder.build());
-        Log.d("MessagingService", "Notification sent with ID: " + MainActivity.NOTIFICATION_ID);
+        NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.notify(notificationId, builder.build());
+
+        Log.d("MessagingService", "Notification sent with ID: " + notificationId);
     }
 
     private void scheduleNotification() {
         Context context = this;
         Intent intent = new Intent(context, NotificationReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                context,
-                0,
-                intent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                context, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
         long interval = 30 * 1000;
         AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
@@ -206,14 +208,15 @@ public class MessagingService extends Service {
 
     private Notification createForegroundNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent =
-                PendingIntent.getActivity(this, 0, notificationIntent,
-                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT
+        );
         return new NotificationCompat.Builder(this, MainActivity.CHANNEL_ID)
                 .setContentTitle("Reminder Service Running")
                 .setContentText("App is scheduling reminders")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentIntent(pendingIntent)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .build();
     }
 
@@ -222,10 +225,7 @@ public class MessagingService extends Service {
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         Intent intent = new Intent(context, NotificationReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                context,
-                0,
-                intent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                context, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
         alarmManager.cancel(pendingIntent);
         stopForeground(true);
