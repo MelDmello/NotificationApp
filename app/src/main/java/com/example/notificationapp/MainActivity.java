@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import androidx.appcompat.app.AppCompatActivity;
@@ -21,6 +22,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         textBox = findViewById(R.id.textBox);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -29,21 +31,28 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // Handle initial intent
         handleIntentResponse(getIntent());
+
+        // Start the service
         startMessagingService();
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent); // **CRITICAL: Update the intent!**
         handleIntentResponse(intent);
     }
 
     private void handleIntentResponse(Intent intent) {
         if (intent != null && intent.hasExtra("response")) {
             String response = intent.getStringExtra("response");
+            Log.d("MainActivity", "Received response from notification: " + response);
             if ("Yes".equals(response)) {
                 textBox.setText("Yes");
+            } else {
+                textBox.setText(response);
             }
         }
     }
@@ -63,11 +72,13 @@ public class MainActivity extends AppCompatActivity {
         Intent scheduleIntent = new Intent(this, MessagingService.class);
         scheduleIntent.setAction(MessagingService.ACTION_SCHEDULE_NOTIFICATION);
         startService(scheduleIntent);
+        Log.d("Main Activity", "Starting Notifications");
     }
 
     public void cancelScheduledNotification(View view) {
         Intent serviceIntent = new Intent(this, MessagingService.class);
         serviceIntent.setAction(MessagingService.ACTION_CANCEL_NOTIFICATION);
         startService(serviceIntent);
+        Log.d("Main Activity", "Stopping Notifications");
     }
 }

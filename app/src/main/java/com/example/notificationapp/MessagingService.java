@@ -7,15 +7,20 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 import androidx.annotation.Nullable;
+import androidx.car.app.model.CarColor;
+import androidx.car.app.notification.CarAppExtender;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
 import android.app.AlarmManager;
 import androidx.core.app.RemoteInput;
+import androidx.core.content.ContextCompat;
 
 public class MessagingService extends Service {
 
@@ -62,11 +67,17 @@ public class MessagingService extends Service {
             if (message != null) {
                 String replyMessage = message.toString();
                 Log.d("MessagingService", "Received reply: " + replyMessage);
+
+                // Explicit intent to launch MainActivity
                 Intent mainActivityIntent = new Intent(this, MainActivity.class);
                 mainActivityIntent.putExtra("response", replyMessage);
                 mainActivityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
                 startActivity(mainActivityIntent);
-                cancelNotification();
+                cancelNotification(notificationId - 1);
+
+            } else {
+                Log.w("MessagingService", "No RemoteInput results found!");
             }
         } else {
             Log.w("MessagingService", "No RemoteInput results found!");
@@ -75,19 +86,25 @@ public class MessagingService extends Service {
 
     private void handleMarkAsReadAction() {
         Log.d("MessagingService", "Notification marked as read");
-        cancelNotification();
+        cancelNotification(notificationId - 1);
     }
 
     private void handleNoAction() {
         Log.d("MessagingService", "No action performed: Cancelling notifications");
         cancelScheduledNotification();
-        cancelNotification();
+        cancelNotification(notificationId - 1);
     }
 
     private void cancelNotification() {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancel(MainActivity.NOTIFICATION_ID);
+        notificationManager.cancel(notificationId - 1); // cancel the last notification
     }
+
+    private void cancelNotification(int notificationId) {
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.cancel(notificationId);
+    }
+
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -99,33 +116,9 @@ public class MessagingService extends Service {
             channel.setDescription("Channel for notifications");
             channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
-            channel.setAllowBubbles(true);
             NotificationManager notificationManager = getSystemService(NotificationManager.class);
             notificationManager.createNotificationChannel(channel);
         }
-    }
-
-    private NotificationCompat.Action createMarkAsReadAction(Context context) {
-        Intent markAsReadIntent = new Intent(context, MessagingService.class);
-        markAsReadIntent.setAction(MessagingService.ACTION_MARK_AS_READ);
-        PendingIntent markAsReadPendingIntent = PendingIntent.getService(
-                context,
-                1,
-                markAsReadIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-        return new NotificationCompat.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Mark as Read",
-                markAsReadPendingIntent
-        )
-                .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
-                .setShowsUserInterface(false)
-                .build();
-    }
-
-    private RemoteInput createReplyRemoteInput() {
-        return new RemoteInput.Builder(REMOTE_INPUT_RESULT_KEY).build();
     }
 
     public void showNotification(Context context) {
@@ -134,35 +127,49 @@ public class MessagingService extends Service {
                 .setKey("reminder_system")
                 .setImportant(true)
                 .build();
+
         NotificationCompat.MessagingStyle messagingStyle = new NotificationCompat.MessagingStyle(user)
                 .setConversationTitle("Reminder!")
                 .addMessage("Do you want to continue??", System.currentTimeMillis(), user);
 
         Intent replyIntent = new Intent(context, MessagingService.class);
         replyIntent.setAction(ACTION_REPLY);
+
         PendingIntent replyPendingIntent = PendingIntent.getService(
                 context,
-                0,
+                0,  // Request code - consider using notificationId here
                 replyIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
         );
 
-        RemoteInput remoteInput = createReplyRemoteInput();
+        RemoteInput remoteInput = new RemoteInput.Builder(REMOTE_INPUT_RESULT_KEY).build();
 
         NotificationCompat.Action replyAction =
                 new NotificationCompat.Action.Builder(
                         android.R.drawable.ic_menu_send,
                         "Reply",
                         replyPendingIntent)
-                        .addRemoteInput(remoteInput)
                         .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+                        .setShowsUserInterface(false)
+                        .addRemoteInput(remoteInput)
                         .build();
 
+        NotificationCompat.Action markAsReadAction =
+                new NotificationCompat.Action.Builder(
+                        android.R.drawable.ic_menu_close_clear_cancel,
+                        "Mark As Read",
+                        replyPendingIntent)
+                        .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+                        .setShowsUserInterface(false)
+                        .build();
+
+
         Intent noIntent = new Intent(context, MessagingService.class);
-        noIntent.setAction(MessagingService.ACTION_NO);
+        noIntent.setAction(ACTION_NO);
+
         PendingIntent noPendingIntent = PendingIntent.getService(
                 context,
-                2,
+                2,  // Request code - consider using notificationId here
                 noIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
@@ -178,18 +185,15 @@ public class MessagingService extends Service {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(messagingStyle)
                 .addAction(replyAction)
-                .addAction(noAction)
-                .addAction(createMarkAsReadAction(context))
+                .addAction(markAsReadAction)
                 .setShortcutId("reminder_conv");
 
         NotificationManager notificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        // Use the incremented notificationId
         notificationManager.notify(notificationId, builder.build());
         Log.d("MessagingService", "Notification sent with ID: " + notificationId);
 
-        // Increment the notification ID for the next notification
         notificationId++;
     }
 
@@ -202,6 +206,7 @@ public class MessagingService extends Service {
                 intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
+
         long interval = 30 * 1000;
         AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), interval, pendingIntent);

@@ -1,5 +1,11 @@
 [versions]
+activityVersion = "1.2.4"
 agp = "8.7.0"
+appAutomotive = "1.4.0"
+appAutomotiveTemplates = "1.0.0"
+appcompatVersion = "1.4.1"
+constraintlayoutVersion = "2.0.4"
+core = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
@@ -7,8 +13,16 @@ appcompat = "1.7.0"
 material = "1.12.0"
 activity = "1.8.0"
 constraintlayout = "2.2.1"
+materialVersion = "1.4.0"
+playServicesCar = "18.0.0"
 
 [libraries]
+activity-v124 = { module = "androidx.activity:activity", version.ref = "activityVersion" }
+app-automotive = { module = "androidx.car.app:app-automotive", version.ref = "appAutomotive" }
+app-automotive-templates = { module = "androidx.car.app:app-automotive-templates", version.ref = "appAutomotiveTemplates" }
+appcompat-v141 = { module = "androidx.appcompat:appcompat", version.ref = "appcompatVersion" }
+constraintlayout-v204 = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayoutVersion" }
+core = { module = "androidx.core:core", version.ref = "core" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -16,6 +30,8 @@ appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "a
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+material-v140 = { module = "com.google.android.material:material", version.ref = "materialVersion" }
+play-services-car = { module = "com.google.android.gms:play-services-car", version.ref = "playServicesCar" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
